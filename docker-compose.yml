@@ -1,0 +1,79 @@
+version: "2.1"
+
+services:
+  postgres:
+    image: postgres:12
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    ports:
+      - "5434:5432"
+    networks:
+      - airflow_network
+
+  scheduler:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+    entrypoint: ./scripts/airflow-entrypoint.sh
+    command: scheduler
+    restart: on-failure
+    depends_on:
+      - postgres
+    env_file:
+      - ./airflow/.env
+    ports:
+      - "8794:8793"
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/airflow-logs:/opt/airflow/logs
+      - ./airflow/scripts:/opt/airflow/scripts
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /usr/local/airflow/airflow-webserver.pid"]
+      interval: 30s
+      timeout: 30s
+      retries: 2
+    networks:
+      - airflow_network
+
+  webserver:
+    hostname: webserver
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+    entrypoint: ./scripts/airflow-entrypoint.sh
+    command: webserver
+    restart: always
+    depends_on:
+      - postgres
+    env_file:
+      - ./airflow/.env
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/airflow-logs:/opt/airflow/logs
+      - ./airflow/scripts:/opt/airflow/scripts
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /usr/local/airflow/airflow-webserver.pid"]
+      interval: 30s
+      timeout: 30s
+      retries: 2
+    networks:
+      - airflow_network
+
+  selenium_firefox:
+    build:
+      context: ./selenium_firefox
+      dockerfile: Dockerfile
+    container_name: selenium_firefox_container
+    ports:
+      - "4444:4444"
+    networks:
+      - airflow_network
+
+
+networks:
+  airflow_network:
+    driver: bridge
